@@ -1,0 +1,65 @@
+.card {
+  background-color: var(--card-background);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease-in-out;
+}
+
+.card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  color: #333;
+}
+
+.description {
+  color: #555;
+  flex-grow: 1; /* Pushes the status to the bottom */
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.status {
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  display: inline-block;
+  text-align: center;
+}
+
+.statusCompleted {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.statusInProgress {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.statusLocked {
+  background-color: #e5e7eb;
+  color: #4b5563;
+}
+
+/* Unlocked Card Styles */
+.unlocked {
+  cursor: pointer;
+}
+
+.unlocked:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-color);
+}
+
+/* Locked Card Styles */
+.locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

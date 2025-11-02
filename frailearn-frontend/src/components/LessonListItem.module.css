@@ -1,0 +1,41 @@
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background-color: var(--card-background);
+  border: 1px solid #eee;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.item:hover {
+  border-color: var(--primary-color);
+  transform: translateX(5px);
+}
+
+.info h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.info p {
+  margin: 0.25rem 0 0 0;
+  color: #555;
+}
+
+.status {
+  font-size: 1.5rem;
+}
+
+.completed {
+  color: #10b981; /* A nice green color */
+}
+
+.notCompleted {
+  color: #9ca3af; /* A neutral gray color */
+}

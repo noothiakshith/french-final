@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>French Learning API Test</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>French Learning API Test</h1>
+        
+        <div class="card">
+            <h2>1. Start Placement Test</h2>
+            <button onclick="startTest()">Start New Test</button>
+            <div id="testResult" class="result"></div>
+        </div>
+
+        <div class="card">
+            <h2>2. Submit Test Answers</h2>
+            <div class="form-group">
+                <label for="testId">Test ID:</label>
+                <input type="text" id="testId" placeholder="Enter test ID">
+            </div>
+            <button onclick="submitTest()">Submit Test</button>
+            <div id="submitResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test token - replace with your actual test token
+        const TEST_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzMThmOGNkLTg1ZDAtNDk1MC05ZTI5LWQ4OTEwOTFhZDA1ZCIsImlhdCI6MTY5ODIwMjk3OCwiZXhwIjoxNzAwNzk0OTc4fQ.dGxkxMRypzw9EM4L3I7CApt6AYdPGKGGQkB-C0iJ9EA';
+
+        async function startTest() {
+            try {
+                const response = await fetch('/api/tests/placement/start', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${TEST_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('testResult').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+                if (data.testId) {
+                    document.getElementById('testId').value = data.testId;
+                }
+            } catch (error) {
+                document.getElementById('testResult').innerHTML = 
+                    `<pre class="error">Error: ${error.message}</pre>`;
+            }
+        }
+
+        async function submitTest() {
+            try {
+                const testId = document.getElementById('testId').value;
+                if (!testId) {
+                    throw new Error('Please enter a Test ID');
+                }
+
+                // Sample answers - in real app, these would come from user input
+                const sampleAnswers = Array(20).fill().map(() => "Sample answer");
+
+                const response = await fetch(`/api/tests/placement/${testId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${TEST_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ answers: sampleAnswers })
+                });
+                const data = await response.json();
+                document.getElementById('submitResult').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('submitResult').innerHTML = 
+                    `<pre class="error">Error: ${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

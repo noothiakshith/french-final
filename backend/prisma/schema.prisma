@@ -1,0 +1,776 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://neondb_owner:npg_Yx3SgHKOld7z@ep-snowy-violet-a4ivgvfm-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+
+}
+
+// ==========================================
+// USER & AUTHENTICATION
+// ==========================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hashed password
+  name      String?
+  
+  // User Level & Progress
+  currentLevel       Level    @default(BEGINNER)
+  hasSkippedTest     Boolean  @default(false)
+  placementTestScore Int?     // null if skipped test
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  // Relations
+  userProgress       UserProgress?
+  placementTest      PlacementTest?
+  bridgeCourse       BridgeCourse?
+  chapters           Chapter[]
+  lessons            Lesson[]
+  exercises          Exercise[]
+  quizAttempts       QuizAttempt[]
+  testAttempts       TestAttempt[]
+  mistakes           Mistake[]
+  remedialChapters   RemedialChapter[]
+  flashcardProgress  FlashcardProgress[]
+  streaks            Streak?
+  
+  @@index([email])
+  @@map("users")
+}
+
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ==========================================
+// PLACEMENT TEST
+// ==========================================
+
+model PlacementTest {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Test Details
+  totalQuestions   Int
+  correctAnswers   Int
+  score            Int      // Percentage (0-100)
+  timeSpent        Int      // In seconds
+  
+  // AI Analysis
+  strengths        Json     // Array of topics user is strong in
+  weaknesses       Json     // Array of topics user is weak in
+  recommendedLevel Level
+  requiresBridge   Boolean  @default(false)
+  
+  // Test Content (AI Generated)
+  questionsData    Json     // Complete test questions and answers
+  
+  // Timestamps
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  @@map("placement_tests")
+}
+
+// ==========================================
+// BRIDGE COURSE
+// ==========================================
+
+model BridgeCourse {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Course Details
+  targetLevel       Level
+  identifiedGaps    Json    // Array of topics to cover
+  totalChapters     Int
+  estimatedHours    Float
+  
+  // Progress
+  completedChapters Int      @default(0)
+  isCompleted       Boolean  @default(false)
+  finalTestScore    Int?     // null until final test taken
+  
+  // AI Generated Content
+  curriculum        Json     // Complete course structure
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  startedAt  DateTime @default(now())
+  completedAt DateTime?
+  
+  // Relations
+  chapters BridgeChapter[]
+  
+  @@map("bridge_courses")
+}
+
+model BridgeChapter {
+  id              String   @id @default(uuid())
+  bridgeCourseId  String
+  bridgeCourse    BridgeCourse @relation(fields: [bridgeCourseId], references: [id], onDelete: Cascade)
+  
+  // Chapter Info
+  chapterNumber   Int
+  title           String
+  topic           String
+  description     String   @db.Text
+  estimatedMinutes Int
+  
+  // Content (AI Generated)
+  content         Json     // Lessons, explanations, examples
+  
+  // Progress
+  isUnlocked      Boolean  @default(false)
+  isCompleted     Boolean  @default(false)
+  masteryScore    Float?   // 0-100
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  unlockedAt   DateTime?
+  completedAt  DateTime?
+  
+  // Relations
+  exercises    BridgeExercise[]
+  quizzes      BridgeQuiz[]
+  
+  @@unique([bridgeCourseId, chapterNumber])
+  @@index([bridgeCourseId])
+  @@map("bridge_chapters")
+}
+
+model BridgeExercise {
+  id              String   @id @default(uuid())
+  bridgeChapterId String
+  bridgeChapter   BridgeChapter @relation(fields: [bridgeChapterId], references: [id], onDelete: Cascade)
+  
+  // Exercise Details
+  exerciseNumber  Int
+  type            ExerciseType
+  question        String   @db.Text
+  correctAnswer   String   @db.Text
+  options         Json?    // For multiple choice
+  explanation     String?  @db.Text
+  
+  // Metadata
+  grammarPoint    String
+  difficulty      Difficulty
+  
+  @@index([bridgeChapterId])
+  @@map("bridge_exercises")
+}
+
+model BridgeQuiz {
+  id              String   @id @default(uuid())
+  bridgeChapterId String
+  bridgeChapter   BridgeChapter @relation(fields: [bridgeChapterId], references: [id], onDelete: Cascade)
+  
+  // Quiz Details
+  title           String
+  totalQuestions  Int
+  passingScore    Int      // Percentage required to pass
+  
+  // Content (AI Generated)
+  questions       Json     // Array of quiz questions
+  
+  @@index([bridgeChapterId])
+  @@map("bridge_quizzes")
+}
+
+// ==========================================
+// MAIN CURRICULUM - CHAPTERS
+// ==========================================
+
+model Chapter {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Chapter Info
+  level           Level
+  chapterNumber   Int
+  sectionNumber   Int      // Which section (1-4)
+  title           String
+  topic           String
+  description     String   @db.Text
+  estimatedMinutes Int
+  
+  // Content (AI Generated)
+  content         Json     // Complete chapter content
+  learningObjectives Json  // Array of learning goals
+  
+  // Locking System
+  isUnlocked      Boolean  @default(false)
+  unlockCondition String?  // e.g., "Pass test for chapters 1-5"
+  
+  // Progress Tracking
+  isStarted       Boolean  @default(false)
+  isCompleted     Boolean  @default(false)
+  masteryScore    Float?   // 0-100
+  timeSpent       Int      @default(0) // Total seconds spent
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  unlockedAt   DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  
+  // Relations
+  lessons      Lesson[]
+  
+  @@unique([userId, level, chapterNumber])
+  @@index([userId, level])
+  @@index([userId, isUnlocked])
+  @@map("chapters")
+}
+
+// ==========================================
+// LESSONS
+// ==========================================
+
+model Lesson {
+  id          String   @id @default(uuid())
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Lesson Info
+  lessonNumber    Int
+  title           String
+  topic           String
+  
+  // Content (AI Generated)
+  content         Json     // Text, examples, explanations
+  grammarPoints   Json     // Array of grammar topics covered
+  vocabulary      Json     // Array of new words
+  examples        Json     // Example sentences with translations
+  
+  // Progress
+  isCompleted     Boolean  @default(false)
+  timeSpent       Int      @default(0) // Seconds
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+  
+  // Relations
+  exercises    Exercise[]
+  
+  @@index([chapterId])
+  @@index([userId])
+  @@map("lessons")
+}
+
+// ==========================================
+// EXERCISES
+// ==========================================
+
+model Exercise {
+  id          String   @id @default(uuid())
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Exercise Details
+  exerciseNumber  Int
+  type            ExerciseType
+  question        String   @db.Text
+  correctAnswer   String   @db.Text
+  options         Json?    // For multiple choice (array of strings)
+  explanation     String?  @db.Text
+  
+  // Metadata for AI analysis
+  grammarPoint    String
+  difficulty      Difficulty
+  topic           String
+  
+  // User's Attempt
+  userAnswer      String?  @db.Text
+  isCorrect       Boolean?
+  attempts        Int      @default(0)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  attemptedAt  DateTime?
+  
+  @@index([lessonId])
+  @@index([userId, grammarPoint])
+  @@map("exercises")
+}
+
+enum ExerciseType {
+  FILL_IN_BLANK
+  MULTIPLE_CHOICE
+  TRANSLATION_EN_TO_FR
+  TRANSLATION_FR_TO_EN
+  SENTENCE_REARRANGE
+  CONJUGATION
+  ARTICLE_SELECTION
+  PRONOUN_SELECTION
+  TRUE_FALSE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ==========================================
+// QUIZZES & TESTS
+// ==========================================
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Quiz Info
+  quizType        QuizType
+  chapterNumber   Int?     // null for bridge quizzes
+  level           Level?
+  title           String
+  
+  // Questions (AI Generated)
+  questions       Json     // Array of questions with answers
+  totalQuestions  Int
+  
+  // Results
+  correctAnswers  Int
+  score           Int      // Percentage
+  passed          Boolean
+  timeSpent       Int      // Seconds
+  
+  // User's Answers
+  userAnswers     Json     // Array of user's responses
+  
+  // Analysis for Remedial Generation
+  weakTopics      Json     // Topics where user struggled
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  completedAt  DateTime @default(now())
+  
+  @@index([userId, quizType])
+  @@index([userId, chapterNumber])
+  @@map("quiz_attempts")
+}
+
+enum QuizType {
+  LESSON_QUIZ      // After each lesson
+  CHAPTER_QUIZ     // End of chapter
+  BRIDGE_QUIZ      // Bridge course quizzes
+  REMEDIAL_QUIZ    // Remedial chapter quizzes
+}
+
+model TestAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Test Info
+  testType        TestType
+  level           Level
+  chapterRange    String   // e.g., "1-5", "6-10", "FINAL"
+  title           String
+  
+  // Questions (AI Generated)
+  questions       Json     // Complete test with questions & answers
+  totalQuestions  Int
+  passingScore    Int      // Required percentage to pass
+  
+  // Results
+  correctAnswers  Int
+  score           Int      // Percentage
+  passed          Boolean
+  timeSpent       Int      // Seconds
+  attemptNumber   Int      @default(1)
+  
+  // User's Answers
+  userAnswers     Json
+  
+  // Detailed Analysis
+  topicBreakdown  Json     // Score per topic/grammar point
+  weakAreas       Json     // Topics needing remedial
+  strongAreas     Json     // Topics mastered
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+  
+  @@index([userId, testType])
+  @@index([userId, level])
+  @@map("test_attempts")
+}
+
+enum TestType {
+  PROGRESS_TEST    // Every 5 chapters
+  FINAL_TEST       // End of level (Beginner/Intermediate/Advanced)
+  BRIDGE_FINAL     // Bridge course completion test
+  REMEDIAL_TEST    // Remedial chapter tests
+}
+
+// ==========================================
+// MISTAKE TRACKING (Critical for Remedial)
+// ==========================================
+
+model Mistake {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Context
+  sourceType      SourceType
+  sourceId        String   // exerciseId, quizId, or testId
+  chapterNumber   Int?
+  lessonNumber    Int?
+  level           Level
+  
+  // Mistake Details
+  grammarPoint    String   // e.g., "definite_articles", "passe_compose"
+  topic           String   // e.g., "Articles", "Past Tenses"
+  mistakeType     String   // e.g., "gender_confusion", "conjugation_error"
+  
+  // Question & Answer
+  question        String   @db.Text
+  correctAnswer   String   @db.Text
+  userAnswer      String   @db.Text
+  
+  // AI Analysis
+  errorCategory   ErrorCategory
+  severity        Severity
+  
+  // Remedial Tracking
+  isAddressed     Boolean  @default(false) // True if remedial generated
+  remedialId      String?  // Link to remedial chapter if generated
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  
+  @@index([userId, grammarPoint])
+  @@index([userId, mistakeType])
+  @@index([userId, isAddressed])
+  @@index([grammarPoint, createdAt])
+  @@map("mistakes")
+}
+
+enum SourceType {
+  EXERCISE
+  LESSON_QUIZ
+  CHAPTER_QUIZ
+  PROGRESS_TEST
+  FINAL_TEST
+  BRIDGE_EXERCISE
+  BRIDGE_QUIZ
+  REMEDIAL_EXERCISE
+}
+
+enum ErrorCategory {
+  GRAMMAR
+  VOCABULARY
+  CONJUGATION
+  GENDER_AGREEMENT
+  ARTICLE_USAGE
+  PRONOUN_USAGE
+  TENSE_SELECTION
+  SENTENCE_STRUCTURE
+  TRANSLATION
+  SPELLING
+}
+
+enum Severity {
+  MINOR       // Occasional mistake
+  MODERATE    // Repeated mistakes (3-5 times)
+  CRITICAL    // Persistent pattern (6+ times)
+}
+
+// ==========================================
+// REMEDIAL CHAPTERS (Auto-Generated)
+// ==========================================
+
+model RemedialChapter {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Remedial Info
+  remedialType    RemedialType
+  priority        Priority
+  title           String
+  description     String   @db.Text
+  
+  // Trigger Analysis
+  triggeredBy     String   // What caused this remedial
+  grammarPoint    String   // Main focus area
+  relatedTopics   Json     // Array of related topics
+  mistakeCount    Int      // Number of mistakes that triggered this
+  mistakeIds      Json     // Array of mistake IDs
+  
+  // Content (AI Generated)
+  content         Json     // Complete remedial curriculum
+  totalLessons    Int
+  totalExercises  Int
+  estimatedMinutes Int
+  
+  // Requirements
+  passingScore    Int      @default(85)
+  
+  // Progress
+  isRequired      Boolean  @default(false)
+  isStarted       Boolean  @default(false)
+  isCompleted     Boolean  @default(false)
+  currentLesson   Int      @default(1)
+  masteryScore    Float?   // Final score
+  
+  // Insertion Point
+  insertedAfter   String?  // e.g., "Chapter 8, Lesson 2"
+  blocksProgress  Boolean  @default(false) // If true, user must complete
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  
+  // Relations
+  exercises    RemedialExercise[]
+  
+  @@index([userId, isCompleted])
+  @@index([userId, priority])
+  @@map("remedial_chapters")
+}
+
+enum RemedialType {
+  MICRO           // 15-30 minutes, single concept
+  STANDARD        // 45-60 minutes, one topic
+  COMPREHENSIVE   // 2-3 hours, multiple related topics
+  REFRESHER       // 20-30 minutes, previously learned
+}
+
+enum Priority {
+  LOW             // Suggested, can be skipped
+  MEDIUM          // Recommended
+  HIGH            // Strongly recommended
+  CRITICAL        // Required, blocks progress
+}
+
+model RemedialExercise {
+  id                String   @id @default(uuid())
+  remedialChapterId String
+  remedialChapter   RemedialChapter @relation(fields: [remedialChapterId], references: [id], onDelete: Cascade)
+  
+  // Exercise Details
+  exerciseNumber  Int
+  lessonNumber    Int
+  type            ExerciseType
+  question        String   @db.Text
+  correctAnswer   String   @db.Text
+  options         Json?
+  explanation     String   @db.Text
+  
+  // User's Attempt
+  userAnswer      String?  @db.Text
+  isCorrect       Boolean?
+  attempts        Int      @default(0)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  attemptedAt  DateTime?
+  
+  @@index([remedialChapterId])
+  @@map("remedial_exercises")
+}
+
+// ==========================================
+// FLASHCARDS
+// ==========================================
+
+model Flashcard {
+  id          String   @id @default(uuid())
+  
+  // Flashcard Content (AI Generated)
+  level           Level
+  chapterNumber   Int?
+  topic           String
+  grammarPoint    String?
+  
+  // Card Sides
+  frontText       String   @db.Text // Usually English
+  backText        String   @db.Text // Usually French
+  exampleSentence String?  @db.Text
+  
+  // Metadata
+  difficulty      Difficulty
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  progress     FlashcardProgress[]
+  
+  @@index([level, topic])
+  @@map("flashcards")
+}
+
+model FlashcardProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId String
+  flashcard   Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  
+  // Spaced Repetition Data
+  easeFactor      Float    @default(2.5)
+  interval        Int      @default(1) // Days until next review
+  repetitions     Int      @default(0)
+  nextReviewDate  DateTime
+  
+  // User Performance
+  totalReviews    Int      @default(0)
+  correctReviews  Int      @default(0)
+  lastWasCorrect  Boolean?
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  lastReviewedAt DateTime?
+  
+  @@unique([userId, flashcardId])
+  @@index([userId, nextReviewDate])
+  @@map("flashcard_progress")
+}
+
+// ==========================================
+// USER PROGRESS & ANALYTICS
+// ==========================================
+
+model UserProgress {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Current Position
+  currentLevel       Level
+  currentChapter     Int
+  currentLesson      Int?
+  
+  // Overall Progress
+  totalLessonsCompleted    Int @default(0)
+  totalExercisesCompleted  Int @default(0)
+  totalQuizzesTaken        Int @default(0)
+  totalTestsTaken          Int @default(0)
+  
+  // Performance Metrics
+  overallAccuracy          Float @default(0) // Percentage
+  averageTestScore         Float @default(0)
+  averageQuizScore         Float @default(0)
+  
+  // Topic Mastery (JSON object with topic: score pairs)
+  topicMastery             Json  // e.g., {"articles": 85, "verbs": 92}
+  
+  // Weak Areas (for remedial generation)
+  identifiedWeaknesses     Json  // Array of weak grammar points
+  
+  // Time Tracking
+  totalTimeSpent           Int @default(0) // Total seconds
+  averageSessionTime       Int @default(0) // Average seconds per session
+  
+  // Achievements
+  longestStreak            Int @default(0) // Days
+  currentStreak            Int @default(0) // Days
+  
+  // Timestamps
+  updatedAt    DateTime @updatedAt
+  
+  @@map("user_progress")
+}
+
+model Streak {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  lastActivityDate DateTime @default(now())
+  
+  @@map("streaks")
+}
+
+// ==========================================
+// AI GENERATION LOGS (Optional but useful)
+// ==========================================
+
+model AIGenerationLog {
+  id          String   @id @default(uuid())
+  
+  // Generation Details
+  generationType  GenerationType
+  entityType      String   // e.g., "Chapter", "Quiz", "Remedial"
+  entityId        String   // ID of generated content
+  
+  // Request Info
+  prompt          String   @db.Text
+  promptTokens    Int
+  completionTokens Int
+  totalTokens     Int
+  
+  // Response
+  modelUsed       String   // e.g., "gpt-4"
+  temperature     Float?
+  generatedContent Json    // The actual generated content
+  
+  // Performance
+  responseTime    Int      // Milliseconds
+  
+  // Cost Tracking
+  estimatedCost   Float?   // In USD
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  
+  @@index([generationType, createdAt])
+  @@map("ai_generation_logs")
+}
+
+enum GenerationType {
+  CURRICULUM
+  CHAPTER
+  LESSON
+  EXERCISE
+  QUIZ
+  TEST
+  REMEDIAL
+  FLASHCARD
+  BRIDGE_COURSE
+  PLACEMENT_TEST
+}
+
+// ==========================================
+// INDEXES FOR PERFORMANCE
+// ==========================================
+
+// Additional composite indexes for complex queries
+
+// Find all mistakes for a user on specific grammar point
+// Already added: @@index([userId, grammarPoint]) in Mistake model
+
+// Find pending remedials for a user
+// Already added: @@index([userId, isCompleted]) in RemedialChapter
+
+// Find flashcards due for review
+// Already added: @@index([userId, nextReviewDate]) in FlashcardProgress
