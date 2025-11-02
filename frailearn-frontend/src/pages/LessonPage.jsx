@@ -48,6 +48,17 @@ const LessonPage = () => {
         <h1 className={styles.title}>{lesson.title}</h1>
       </header>
 
+      {/* Introduction Section */}
+      {lesson.content?.introduction && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Introduction</h2>
+          <div className={styles.content}>
+            <p>{lesson.content.introduction}</p>
+          </div>
+        </section>
+      )}
+
+      {/* Explanation Section */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Explanation</h2>
         <div className={styles.content}>
@@ -55,6 +66,98 @@ const LessonPage = () => {
         </div>
       </section>
 
+      {/* Key Points Section */}
+      {lesson.content?.keyPoints && lesson.content.keyPoints.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Key Points</h2>
+          <div className={styles.content}>
+            <ul className={styles.keyPointsList}>
+              {lesson.content.keyPoints.map((point, index) => (
+                <li key={index} className={styles.keyPoint}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Grammar Points Section */}
+      {lesson.grammarPoints?.points && lesson.grammarPoints.points.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Grammar Points</h2>
+          <div className={styles.content}>
+            <ul className={styles.grammarList}>
+              {lesson.grammarPoints.points.map((point, index) => (
+                <li key={index} className={styles.grammarPoint}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Vocabulary Section */}
+      {lesson.vocabulary?.words && lesson.vocabulary.words.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Vocabulary</h2>
+          <div className={styles.content}>
+            <div className={styles.vocabularyGrid}>
+              {lesson.vocabulary.words.map((word, index) => {
+                // Handle both string format "word - translation" and object format {fr: "", en: ""}
+                let french, english;
+                if (typeof word === 'string') {
+                  const parts = word.split(' - ');
+                  french = parts[0];
+                  english = parts[1] || '';
+                } else if (word.fr && word.en) {
+                  french = word.fr;
+                  english = word.en;
+                } else {
+                  return null;
+                }
+                
+                return (
+                  <div key={index} className={styles.vocabularyItem}>
+                    <span className={styles.french}>{french}</span>
+                    <span className={styles.english}>{english}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Examples Section */}
+      {lesson.examples?.pairs && lesson.examples.pairs.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Examples</h2>
+          <div className={styles.content}>
+            <div className={styles.examplesList}>
+              {lesson.examples.pairs.map((example, index) => (
+                <div key={index} className={styles.exampleItem}>
+                  <div className={styles.frenchExample}>{example.fr}</div>
+                  <div className={styles.englishExample}>{example.en}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Common Mistakes Section */}
+      {lesson.content?.commonMistakes && lesson.content.commonMistakes.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Common Mistakes to Avoid</h2>
+          <div className={styles.content}>
+            <ul className={styles.mistakesList}>
+              {lesson.content.commonMistakes.map((mistake, index) => (
+                <li key={index} className={styles.mistake}>⚠️ {mistake}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Exercises Section */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           Exercises ({correctAnswers.size} / {lesson.exercises.length} complete)

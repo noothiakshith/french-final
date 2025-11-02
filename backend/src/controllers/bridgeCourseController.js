@@ -252,8 +252,44 @@ export const submitBridgeExercise = async (req, res) => {
             return res.status(403).json({ message: "You do not have access to this exercise." });
         }
 
-        // 2. Grade the answer
-        const isCorrect = userAnswer.trim().toLowerCase() === exercise.correctAnswer.trim().toLowerCase();
+        // 2. Enhanced answer validation that handles both French and English
+        const normalizeAnswer = (text) => {
+            return text
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+                .replace(/[^a-z\s\-']/g, '') // Keep only letters, spaces, hyphens, and apostrophes
+                .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+        };
+
+        const normalizedUserAnswer = normalizeAnswer(userAnswer);
+        const normalizedCorrectAnswer = normalizeAnswer(exercise.correctAnswer);
+        
+        // Check for exact match first
+        let isCorrect = normalizedUserAnswer === normalizedCorrectAnswer;
+        
+        // For translation exercises, also check common alternative answers
+        if (!isCorrect && (exercise.type === 'TRANSLATION_EN_TO_FR' || exercise.type === 'TRANSLATION_FR_TO_EN')) {
+            // Define common alternative translations
+            const alternativeAnswers = {
+                'hello': ['bonjour', 'salut'],
+                'bonjour': ['hello', 'good morning', 'good day'],
+                'goodbye': ['au revoir', 'salut'],
+                'au revoir': ['goodbye', 'bye'],
+                'thank you': ['merci'],
+                'merci': ['thank you', 'thanks'],
+                'please': ['s\'il vous plait', 'sil vous plait'],
+                'sil vous plait': ['please'],
+                'yes': ['oui'],
+                'oui': ['yes'],
+                'no': ['non'],
+                'non': ['no']
+            };
+            
+            const correctAlternatives = alternativeAnswers[normalizedCorrectAnswer] || [];
+            isCorrect = correctAlternatives.includes(normalizedUserAnswer);
+        }
         let chapterCompleted = false;
 
         // 3. Update the exercise attempt (Note: BridgeExercise doesn't have attempt tracking in your schema, so we skip this)
