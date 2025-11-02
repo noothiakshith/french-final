@@ -57,12 +57,79 @@ const BridgeChapterDetailPage = () => {
         <p className={styles.description}>{chapter.description}</p>
       </header>
 
+      {/* Introduction Section */}
+      {chapter.content?.introduction && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Introduction</h2>
+          <div className={styles.content}>
+            <p>{chapter.content.introduction}</p>
+          </div>
+        </section>
+      )}
+
+      {/* Main Explanation Section */}
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Explanation</h2>
+        <h2 className={styles.sectionTitle}>Detailed Explanation</h2>
         <div className={styles.content}>
-          <p>{chapter.explanation || 'No explanation available.'}</p>
+          <p>{chapter.content?.explanation || chapter.explanation || 'No explanation available.'}</p>
         </div>
       </section>
+
+      {/* Key Points Section */}
+      {chapter.content?.keyPoints && chapter.content.keyPoints.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Key Points to Remember</h2>
+          <div className={styles.content}>
+            <ul className={styles.keyPointsList}>
+              {chapter.content.keyPoints.map((point, index) => (
+                <li key={index} className={styles.keyPoint}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Common Mistakes Section */}
+      {chapter.content?.commonMistakes && chapter.content.commonMistakes.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Common Mistakes to Avoid</h2>
+          <div className={styles.content}>
+            <ul className={styles.mistakesList}>
+              {chapter.content.commonMistakes.map((mistake, index) => (
+                <li key={index} className={styles.mistake}>⚠️ {mistake}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Study Tips Section */}
+      {chapter.content?.studyTips && chapter.content.studyTips.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Study Tips</h2>
+          <div className={styles.content}>
+            <ul className={styles.tipsList}>
+              {chapter.content.studyTips.map((tip, index) => (
+                <li key={index} className={styles.tip}>💡 {tip}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {/* Cultural Notes Section */}
+      {chapter.content?.culturalNotes && chapter.content.culturalNotes.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Cultural Notes</h2>
+          <div className={styles.content}>
+            <ul className={styles.culturalList}>
+              {chapter.content.culturalNotes.map((note, index) => (
+                <li key={index} className={styles.culturalNote}>🇫🇷 {note}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>

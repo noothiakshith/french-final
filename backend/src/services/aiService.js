@@ -567,7 +567,47 @@ export async function generateBridgeCourse(weaknesses) {
     try {
         const weakTopicsString = Object.keys(weaknesses).join(', ') || 'basic French concepts';
         console.log(`AI Service: Generating Bridge Course for weaknesses: ${weakTopicsString}`);
-        const prompt = `You are an expert French tutor. A student has shown weakness in the following topics: ${weakTopicsString}. Generate a targeted "Bridge Course" to fix these gaps. The output MUST be a single, valid JSON object with a root key "bridgeCourse". This object must contain a "chapters" array. Create one chapter for each weak topic (maximum 3 chapters to avoid truncation). Each chapter object must contain: "title", "topic", "description", "estimatedMinutes", "content": { "explanation": "..." }, and an "exercises" array of exactly 5 "BridgeExercise" objects. Each exercise must contain: "type" (one of: MULTIPLE_CHOICE, FILL_IN_BLANK, TRUE_FALSE), "question", "options", "correctAnswer", and "explanation".`;
+        const prompt = `You are an expert French tutor creating comprehensive remedial content. A student has shown weakness in: ${weakTopicsString}. Generate a detailed "Bridge Course" with rich educational content to fix these gaps.
+
+The output MUST be a single, valid JSON object with this EXACT structure:
+{
+  "bridgeCourse": {
+    "chapters": [
+      {
+        "title": "Comprehensive Chapter Title",
+        "topic": "Specific Topic",
+        "description": "Brief description (max 100 chars)",
+        "estimatedMinutes": 45,
+        "content": {
+          "introduction": "Detailed introduction explaining why this topic is important and what students will learn (2-3 sentences)",
+          "explanation": "COMPREHENSIVE explanation covering theory, rules, common mistakes, cultural context, and practical applications (minimum 400 words). Include step-by-step breakdowns, examples, pronunciation guides, and memory techniques.",
+          "keyPoints": ["Detailed key concept 1 with explanation", "Detailed key concept 2 with examples", "Detailed key concept 3 with context", "Detailed key concept 4 with applications"],
+          "commonMistakes": ["Specific mistake 1 with explanation and correction", "Specific mistake 2 with why it happens", "Specific mistake 3 with prevention tips"],
+          "studyTips": ["Practical tip 1 for mastering this concept", "Memory technique 2", "Practice suggestion 3"],
+          "culturalNotes": ["Cultural context 1", "Usage note 2", "Social context 3"]
+        },
+        "exercises": [
+          {
+            "type": "MULTIPLE_CHOICE",
+            "question": "Detailed question with context that tests understanding",
+            "correctAnswer": "Correct answer",
+            "options": ["Correct answer", "Plausible distractor 1", "Plausible distractor 2", "Plausible distractor 3"],
+            "explanation": "Comprehensive explanation of why this answer is correct, including grammar rules and usage notes"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+REQUIREMENTS:
+- Create 1-3 chapters (one per weak topic, max 3 to avoid truncation)
+- Each explanation must be minimum 400 words with rich detail
+- Include cultural context, pronunciation guides, and memory techniques
+- Provide practical study tips and common mistake prevention
+- Each chapter should have exactly 5 well-designed exercises
+- Make content educational and comprehensive for remedial learning
+- Focus specifically on: ${weakTopicsString}`;
         const result = await callGeminiAPI(prompt);
         if (!result || !result.bridgeCourse || !result.bridgeCourse.chapters) {
             throw new Error('AI returned invalid bridge course format');
@@ -575,25 +615,75 @@ export async function generateBridgeCourse(weaknesses) {
         return result.bridgeCourse;
     } catch (error) {
         console.error("Error in generateBridgeCourse:", error);
-        // Return a minimal valid bridge course if AI fails
+        // Return a comprehensive fallback bridge course if AI fails
         return {
             chapters: [{
-                title: "Core Concepts Review",
+                title: "Core French Concepts Review",
                 topic: "French Fundamentals",
-                description: "Review of essential French concepts",
-                estimatedMinutes: 30,
+                description: "Comprehensive review of essential French concepts you need to master",
+                estimatedMinutes: 45,
                 content: {
-                    explanation: "This chapter covers fundamental French concepts you need to master."
+                    introduction: "This comprehensive review chapter will help you master the fundamental French concepts that are essential for your language learning journey. We'll cover key grammar rules, vocabulary, and usage patterns.",
+                    explanation: "French fundamentals form the backbone of successful language learning. This chapter focuses on the core concepts that many students find challenging: gender agreement, verb conjugations, and sentence structure. Gender in French is not arbitrary - it follows patterns that can be learned. Masculine nouns often end in consonants (le livre, le chat), while feminine nouns frequently end in -e (la table, la voiture). However, there are important exceptions like 'le problème' (masculine despite ending in -e) and 'la main' (feminine despite ending in a consonant). Verb conjugations follow predictable patterns for regular verbs. -ER verbs (like 'parler') drop the -er and add endings: je parle, tu parles, il/elle parle, nous parlons, vous parlez, ils/elles parlent. -IR verbs (like 'finir') follow a similar pattern: je finis, tu finis, il/elle finit, nous finissons, vous finissez, ils/elles finissent. Sentence structure in French follows Subject-Verb-Object order like English, but adjectives usually come after nouns (une voiture rouge = a red car). Question formation can use inversion (Parlez-vous français?), est-ce que (Est-ce que vous parlez français?), or rising intonation (Vous parlez français?). Understanding these patterns will dramatically improve your French comprehension and production.",
+                    keyPoints: [
+                        "Gender patterns: masculine nouns often end in consonants, feminine often in -e, but learn exceptions",
+                        "Regular verb conjugations follow predictable patterns based on infinitive endings (-er, -ir, -re)",
+                        "Adjectives usually follow nouns in French, unlike English (une voiture rouge)",
+                        "Three ways to form questions: inversion, est-ce que, or rising intonation"
+                    ],
+                    commonMistakes: [
+                        "Assuming all nouns ending in -e are feminine - learn exceptions like 'le problème'",
+                        "Forgetting to make adjectives agree with noun gender and number",
+                        "Using English word order for adjectives (saying 'rouge voiture' instead of 'voiture rouge')"
+                    ],
+                    studyTips: [
+                        "Learn nouns with their articles (le/la) to memorize gender naturally",
+                        "Practice verb conjugations daily with flashcards or apps",
+                        "Read French texts aloud to internalize natural sentence rhythm"
+                    ],
+                    culturalNotes: [
+                        "French speakers are generally patient with learners who make gender mistakes",
+                        "Formal vs informal speech (vous vs tu) is very important in French culture",
+                        "French sentence structure reflects the language's logical, structured approach"
+                    ]
                 },
-                exercises: Array(5).fill(null).map((_, i) => ({
-                    type: "MULTIPLE_CHOICE",
-                    question: `Practice Question ${i + 1}`,
-                    correctAnswer: "Option A",
-                    options: ["Option A", "Option B", "Option C"],
-                    explanation: "Basic French practice",
-                    grammarPoint: "Fundamentals",
-                    difficulty: "MEDIUM"
-                }))
+                exercises: [
+                    {
+                        type: "MULTIPLE_CHOICE",
+                        question: "Which article goes with 'problème'?",
+                        correctAnswer: "le",
+                        options: ["le", "la", "les", "des"],
+                        explanation: "'Le problème' is masculine despite ending in -e. This is a common exception to the gender pattern that students must memorize."
+                    },
+                    {
+                        type: "FILL_IN_BLANK",
+                        question: "Complete the conjugation: Je _____ français. (I speak French)",
+                        correctAnswer: "parle",
+                        options: [],
+                        explanation: "'Parler' is a regular -ER verb. For 'je', drop -er and add -e: je parle."
+                    },
+                    {
+                        type: "MULTIPLE_CHOICE",
+                        question: "How do you say 'a red car' in French?",
+                        correctAnswer: "une voiture rouge",
+                        options: ["une voiture rouge", "une rouge voiture", "un voiture rouge", "une voiture rouges"],
+                        explanation: "In French, most adjectives come after the noun. 'Voiture' is feminine, so use 'une' and 'rouge' stays the same."
+                    },
+                    {
+                        type: "FILL_IN_BLANK",
+                        question: "Make this formal: Tu parles anglais? → _____ vous parlez anglais?",
+                        correctAnswer: "Est-ce que",
+                        options: [],
+                        explanation: "'Est-ce que' is the easiest way to form formal questions in French. It's more common than inversion in spoken French."
+                    },
+                    {
+                        type: "MULTIPLE_CHOICE",
+                        question: "Which verb conjugation is correct for 'nous' with 'finir'?",
+                        correctAnswer: "finissons",
+                        options: ["finissons", "finissez", "finissent", "finis"],
+                        explanation: "For -IR verbs like 'finir', the 'nous' form adds -issons: nous finissons."
+                    }
+                ]
             }]
         };
     }
