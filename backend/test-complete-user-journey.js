@@ -365,7 +365,7 @@ async function completeUserJourney() {
                     title: 'Final Test for Bridge Course',
                     questions: finalTestData.questionsData,
                     totalQuestions: finalTestData.questionsData.length,
-                    passingScore: 85,
+                    passingScore: 80,
                     chapterRange: `Bridge-${bridgeCourse.id}`,
                     correctAnswers: 0,
                     score: 0,

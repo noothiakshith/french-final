@@ -106,7 +106,7 @@ export const startFinalTest = async (req, res) => {
                 title: `Final Test for Bridge Course`,
                 questions: testData.questionsData,
                 totalQuestions: testData.questionsData.length,
-                passingScore: 85, // Higher bar to prove mastery
+                passingScore: 80, // 8/10 questions correct to pass
                 chapterRange: `Bridge-${bridgeCourse.id}`, // Custom identifier
                 correctAnswers: 0, // Initialize with 0 since no questions answered yet
                 score: 0, // Initialize with 0 since no questions answered yet

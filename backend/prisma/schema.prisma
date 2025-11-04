@@ -529,7 +529,7 @@ model RemedialChapter {
   estimatedMinutes Int
   
   // Requirements
-  passingScore    Int      @default(85)
+  passingScore    Int      @default(80)
   
   // Progress
   isRequired      Boolean  @default(false)
