@@ -1,8 +1,14 @@
 :root {
   --primary-color: #007bff;
+  --primary-dark: #0056b3;
+  --primary-hover: #0056b3;
   --background-color: #f4f7f9;
   --card-background: #ffffff;
   --text-color: #000000;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --success-color: #10b981;
   --error-color: #dc3545;
 }
 
