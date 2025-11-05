@@ -162,6 +162,11 @@ const LessonPage = () => {
         <h2 className={styles.sectionTitle}>
           Exercises ({correctAnswers.size} / {lesson.exercises.length} complete)
         </h2>
+        {correctAnswers.size < lesson.exercises.length && (
+          <div className={styles.progressNotice}>
+            <p>📝 Complete all {lesson.exercises.length} exercises to finish this lesson</p>
+          </div>
+        )}
         <div>
           {lesson.exercises.map(ex => (
             <Exercise key={ex.id} exercise={ex} onCorrectAnswer={handleCorrectAnswer} />
