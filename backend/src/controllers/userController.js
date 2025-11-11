@@ -138,14 +138,14 @@ export const getDashboard = async (req, res) => {
                 });
                 if (!isTestTaken) {
                     upcomingTest = {
-                        message: `You have completed all chapters in this section. Time for the Progress Test!`,
+                        message: `You have completed all chapters in this section. Take the Progress Test to assess your learning!`,
                         chapterRange: `${section.sectionNumber * 5 - 4}-${section.sectionNumber * 5}`,
                     };
                     
-                    // Override next action to prioritize progress test
+                    // Suggest progress test but don't make it blocking
                     nextAction = {
                         type: 'PROGRESS_TEST',
-                        message: `🎯 Progress Test Available! Complete chapters ${section.sectionNumber * 5 - 4}-${section.sectionNumber * 5} test to unlock the next section.`,
+                        message: `📊 Progress Test Available! Test your knowledge of chapters ${section.sectionNumber * 5 - 4}-${section.sectionNumber * 5} (optional - next lessons already unlocked).`,
                         details: {
                             chapterRange: `${section.sectionNumber * 5 - 4}-${section.sectionNumber * 5}`,
                             sectionNumber: section.sectionNumber,
@@ -156,10 +156,16 @@ export const getDashboard = async (req, res) => {
             }
         }
         
+        // Get the most up-to-date user level from the database
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { currentLevel: true }
+        });
+        
         // Final response object
         const dashboard = {
             progress: {
-                level: userProgress?.currentLevel || req.user.currentLevel,
+                level: currentUser?.currentLevel || userProgress?.currentLevel || req.user.currentLevel,
                 totalLessonsCompleted: userProgress?.totalLessonsCompleted || 0,
                 overallAccuracy: userProgress?.overallAccuracy || 0,
             },

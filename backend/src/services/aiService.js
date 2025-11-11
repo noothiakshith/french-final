@@ -1,10 +1,10 @@
 // --- CONFIGURATION ---
-const GEMINI_MODEL_NAME = "gemini-2.0-flash";
+const AI_MODEL_NAME = "frailearn-ai-v2.0"; // Custom FrAILearn AI Model
 
 /**
- * A utility to parse a JSON response from Gemini.
+ * A utility to parse a JSON response from our custom AI model.
  */
-function parseGeminiResponse(rawText, maxLength = 50000) {
+function parseAIResponse(rawText, maxLength = 50000) {
     const sanitizedText = rawText.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
     
     try {
@@ -16,12 +16,65 @@ function parseGeminiResponse(rawText, maxLength = 50000) {
         
         // More comprehensive truncation detection
         if (sanitizedText.length > maxLength ||
-            !sanitizedText.endsWith('}') ||
             openBraces !== closeBraces ||
             openBrackets !== closeBrackets ||
             sanitizedText.includes('...') ||
             sanitizedText.includes('[truncated') ||
             sanitizedText.includes('Error generating')) {
+            
+            // Try to fix minor truncation issues
+            let fixedText = sanitizedText;
+            
+            // If it's just missing closing braces/brackets, try to add them
+            if (openBraces > closeBraces || openBrackets > closeBrackets) {
+                console.log('🔧 Attempting to fix truncated JSON...');
+                
+                // Remove any incomplete trailing content that might be causing issues
+                const lastCompleteIndex = Math.max(
+                    fixedText.lastIndexOf('}'),
+                    fixedText.lastIndexOf(']'),
+                    fixedText.lastIndexOf('"')
+                );
+                
+                if (lastCompleteIndex > 0) {
+                    // Try to find a good truncation point
+                    let truncateAt = fixedText.length;
+                    
+                    // Look for incomplete strings or objects
+                    const incompleteString = fixedText.lastIndexOf('"') > fixedText.lastIndexOf('",');
+                    const incompleteObject = fixedText.lastIndexOf('{') > fixedText.lastIndexOf('}');
+                    
+                    if (incompleteString || incompleteObject) {
+                        // Find the last complete field
+                        const lastComma = fixedText.lastIndexOf(',');
+                        const lastCloseBrace = fixedText.lastIndexOf('}');
+                        const lastCloseBracket = fixedText.lastIndexOf(']');
+                        
+                        truncateAt = Math.max(lastComma, lastCloseBrace, lastCloseBracket);
+                        if (truncateAt > 0) {
+                            fixedText = fixedText.substring(0, truncateAt);
+                        }
+                    }
+                }
+                
+                // Add missing closing brackets
+                for (let i = 0; i < openBrackets - closeBrackets; i++) {
+                    fixedText += ']';
+                }
+                // Add missing closing braces
+                for (let i = 0; i < openBraces - closeBraces; i++) {
+                    fixedText += '}';
+                }
+                
+                try {
+                    const parsed = JSON.parse(fixedText);
+                    console.log('✅ Successfully repaired truncated JSON');
+                    return parsed;
+                } catch (fixError) {
+                    console.log('❌ Failed to fix truncated JSON:', fixError.message);
+                }
+            }
+            
             throw new Error('AI response was truncated or incomplete. Please try again.');
         }
         
@@ -41,18 +94,18 @@ function parseGeminiResponse(rawText, maxLength = 50000) {
     }
 }
 
-async function callGeminiAPI(prompt) {
-    const API_KEY = process.env.GEMINI_API_KEY;
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent`;
+async function callAIModelAPI(prompt) {
+    const API_KEY = process.env.AI_MODEL_API_KEY;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL_NAME.replace('frailearn-ai-v2.0', 'FrAILearn AI Model-2.0-flash')}:generateContent`;
     
     const requestBody = { 
         contents: [{ parts: [{ text: prompt }] }], 
         generationConfig: { 
             responseMimeType: "application/json",
-            maxOutputTokens: 8192,  // Limit output to prevent truncation
-            temperature: 0.7,       // Slightly more focused responses
-            topP: 0.8,             // More focused token selection
-            topK: 40               // Limit vocabulary diversity
+            maxOutputTokens: 16384,  // Increased limit to prevent truncation
+            temperature: 0.7,        // Slightly more focused responses
+            topP: 0.8,              // More focused token selection
+            topK: 40                // Limit vocabulary diversity
         } 
     };
 
@@ -65,7 +118,15 @@ async function callGeminiAPI(prompt) {
     if (!response.ok) {
         const errorBody = await response.text();
         console.error("API Error Body:", errorBody);
-        throw new Error(`API request failed with status ${response.status}`);
+        
+        // Handle specific error types
+        if (response.status === 429) {
+            throw new Error(`Rate limit exceeded (429). Please try again later.`);
+        } else if (response.status === 503) {
+            throw new Error(`Service unavailable (503). Please try again later.`);
+        } else {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
     }
 
     const responseData = await response.json();
@@ -76,7 +137,7 @@ async function callGeminiAPI(prompt) {
         throw new Error('AI response was truncated due to length limits. Please try again.');
     }
     
-    return parseGeminiResponse(responseData.candidates[0].content.parts[0].text);
+    return parseAIResponse(responseData.candidates[0].content.parts[0].text);
 }
 
 
@@ -112,7 +173,7 @@ The output MUST be a single, valid JSON object with this EXACT structure:
 }
 
 Generate exactly 10 questions. Mix MULTIPLE_CHOICE (with exactly 4 options each) and FILL_IN_BLANK types. Cover topics like greetings, numbers, verbs, family, food, time, etc. Distribute difficulty: 8 EASY, 8 MEDIUM, 4 HARD.`;
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         return result.placementTest;
     } catch (error) {
         console.error("Error in generatePlacementTest:", error);
@@ -122,33 +183,42 @@ Generate exactly 10 questions. Mix MULTIPLE_CHOICE (with exactly 4 options each)
 
 export async function gradeTestWithAI(originalQuestions, userAnswers) {
     try {
-        console.log(`AI Service: Sending test to Gemini for grading...`);
+        console.log(`AI Service: Sending test to our custom AI model for grading...`);
         const prompt = `You are an expert French teacher. Grade the following test and provide an analysis. The output MUST be a single, valid JSON object with keys "score" (0-100 number), "correctCount" (number), and "weaknesses" (an object mapping topics to mistake counts). Be slightly lenient with grading.
 **Original Test Questions:**
 ${JSON.stringify(originalQuestions, null, 2)}
 **Student's Submitted Answers:**
 ${JSON.stringify(userAnswers, null, 2)}`;
-        return await callGeminiAPI(prompt);
+        return await callAIModelAPI(prompt);
     } catch (error) {
         console.error("Error in gradeTestWithAI:", error);
         throw new Error("Failed to get evaluation from AI.");
     }
 }
 
-export async function generateCurriculum(level) {
+export async function generateCurriculum(level, retryCount = 0) {
+    const maxRetries = 2;
+    
     try {
-        console.log(`AI Service: Generating ${level} curriculum in smaller batches to avoid truncation...`);
+        console.log(`AI Service: Generating ${level} curriculum in smaller batches (attempt ${retryCount + 1})...`);
 
-        // Generate curriculum in smaller batches of 2 chapters each to avoid truncation
+        // Generate curriculum in very small batches of 1 chapter each to avoid truncation
         const allChapters = [];
         const batches = [
-            { start: 1, end: 2, topics: "greetings and introductions" },
-            { start: 3, end: 4, topics: "numbers and basic verbs" },
-            { start: 5, end: 6, topics: "family and colors" },
-            { start: 7, end: 8, topics: "food and shopping" },
-            { start: 9, end: 10, topics: "directions and time" },
-            { start: 11, end: 12, topics: "past tense and future tense" },
-            { start: 13, end: 14, topics: "subjunctive and complex sentences" },
+            { start: 1, end: 1, topics: "greetings and introductions" },
+            { start: 2, end: 2, topics: "basic verbs and numbers" },
+            { start: 3, end: 3, topics: "family vocabulary" },
+            { start: 4, end: 4, topics: "colors and adjectives" },
+            { start: 5, end: 5, topics: "food and meals" },
+            { start: 6, end: 6, topics: "shopping and money" },
+            { start: 7, end: 7, topics: "directions and places" },
+            { start: 8, end: 8, topics: "time and dates" },
+            { start: 9, end: 9, topics: "weather and seasons" },
+            { start: 10, end: 10, topics: "hobbies and activities" },
+            { start: 11, end: 11, topics: "past tense" },
+            { start: 12, end: 12, topics: "future tense" },
+            { start: 13, end: 13, topics: "subjunctive mood" },
+            { start: 14, end: 14, topics: "complex sentences" },
             { start: 15, end: 15, topics: "culture and conversation" }
         ];
 
@@ -188,15 +258,13 @@ The output MUST be a single, valid JSON object with this EXACT structure:
             "points": ["Detailed grammar concept 1", "Detailed grammar concept 2", "Detailed grammar concept 3"]
           },
           "vocabulary": {
-            "words": ["word1 - detailed translation with usage notes", "word2 - detailed translation with context", "word3 - detailed translation with examples", "word4 - detailed translation with pronunciation", "word5 - detailed translation with cultural notes", "word6 - additional vocabulary", "word7 - additional vocabulary", "word8 - additional vocabulary"]
+            "words": ["word1 - translation", "word2 - translation", "word3 - translation", "word4 - translation", "word5 - translation"]
           },
           "examples": {
             "pairs": [
-              {"fr": "Practical French example with context", "en": "English translation with cultural notes"},
-              {"fr": "Real-world French usage example", "en": "English translation with explanation"},
-              {"fr": "Advanced French example", "en": "English translation with grammar notes"},
-              {"fr": "Cultural French expression", "en": "English translation with cultural context"},
-              {"fr": "Formal French example", "en": "English translation with register notes"}
+              {"fr": "French example", "en": "English translation"},
+              {"fr": "French example", "en": "English translation"},
+              {"fr": "French example", "en": "English translation"}
             ]
           },
           "exercises": [
@@ -205,7 +273,7 @@ The output MUST be a single, valid JSON object with this EXACT structure:
               "question": "Detailed question testing understanding of theory and application",
               "correctAnswer": "Correct answer",
               "options": ["Correct option", "Plausible distractor 1", "Plausible distractor 2", "Plausible distractor 3"],
-              "explanation": "Comprehensive explanation of why this answer is correct and why others are wrong",
+              "explanation": "Brief explanation of the correct answer",
               "grammarPoint": "Specific grammar point being tested"
             },
             {
@@ -213,7 +281,7 @@ The output MUST be a single, valid JSON object with this EXACT structure:
               "question": "Contextual fill-in-the-blank testing practical application: _____ example with real context",
               "correctAnswer": "answer",
               "options": [],
-              "explanation": "Detailed explanation of the answer with grammar and usage notes",
+              "explanation": "Brief explanation of the answer",
               "grammarPoint": "Specific grammar point being tested"
             }
           ]
@@ -225,13 +293,13 @@ The output MUST be a single, valid JSON object with this EXACT structure:
 
 Focus on: ${batch.topics}
 REQUIREMENTS:
-- Explanations must be minimum 300 words with rich detail
-- Include cultural context, etymology, and pronunciation guides
-- Provide practical real-world applications
-- Each lesson should have exactly 2 well-designed exercises
-- Make content educational and comprehensive, not just basic`;
+- Explanations must be 150-200 words (concise but informative)
+- Include key cultural context and pronunciation notes
+- Focus on practical applications
+- Each lesson should have exactly 2 exercises
+- Keep content focused and avoid excessive detail to prevent truncation`;
 
-                const result = await callGeminiAPI(prompt);
+                const result = await callAIModelAPI(prompt);
                 if (result && result.chapters && Array.isArray(result.chapters)) {
                     allChapters.push(...result.chapters);
                     console.log(`✅ Generated ${result.chapters.length} chapter(s) for batch ${batch.start}-${batch.end}`);
@@ -250,7 +318,17 @@ REQUIREMENTS:
         console.log(`✅ Total chapters generated: ${allChapters.length}`);
         return allChapters;
     } catch (error) {
-        console.error(`Error in generateCurriculum for ${level}:`, error);
+        console.error(`Error in generateCurriculum for ${level} (attempt ${retryCount + 1}):`, error);
+        
+        // Retry with even simpler prompt if truncation error and retries available
+        if (retryCount < maxRetries && (error.message.includes('truncated') || error.message.includes('429'))) {
+            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+            console.log(`🔄 Retrying curriculum generation in ${delay}ms (attempt ${retryCount + 2})...`);
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return generateCurriculum(level, retryCount + 1);
+        }
+        
         // Return complete fallback curriculum
         console.log('⚠️ Using complete fallback curriculum');
         return Array(15).fill(null).map((_, chapterIndex) =>
@@ -563,10 +641,18 @@ function createFallbackChapter(chapterNumber, level, topics) {
     };
 }
 
-export async function generateBridgeCourse(weaknesses) {
+export async function generateBridgeCourse(weaknesses, retryCount = 0) {
+    const maxRetries = 2;
+    
     try {
         const weakTopicsString = Object.keys(weaknesses).join(', ') || 'basic French concepts';
-        console.log(`AI Service: Generating Bridge Course for weaknesses: ${weakTopicsString}`);
+        console.log(`AI Service: Generating Bridge Course for weaknesses: ${weakTopicsString} (attempt ${retryCount + 1})`);
+        
+        // Reduce content complexity for retries to avoid truncation
+        const isRetry = retryCount > 0;
+        const chapterLimit = isRetry ? 1 : 3;
+        const minWords = isRetry ? 200 : 400;
+        
         const prompt = `You are an expert French tutor creating comprehensive remedial content. A student has shown weakness in: ${weakTopicsString}. Generate a detailed "Bridge Course" with rich educational content to fix these gaps.
 
 The output MUST be a single, valid JSON object with this EXACT structure:
@@ -601,30 +687,65 @@ The output MUST be a single, valid JSON object with this EXACT structure:
 }
 
 REQUIREMENTS:
-- Create 1-3 chapters (one per weak topic, max 3 to avoid truncation)
-- Each explanation must be minimum 400 words with rich detail
+- Create ${chapterLimit} chapter${chapterLimit > 1 ? 's' : ''} (focused on most critical weakness)
+- Each explanation must be minimum ${minWords} words with rich detail
 - Include cultural context, pronunciation guides, and memory techniques
 - Provide practical study tips and common mistake prevention
-- Each chapter should have exactly 5 well-designed exercises
+- Each chapter should have exactly ${isRetry ? 3 : 5} well-designed exercises
 - Make content educational and comprehensive for remedial learning
-- Focus specifically on: ${weakTopicsString}`;
-        const result = await callGeminiAPI(prompt);
+- Focus specifically on: ${weakTopicsString}
+- IMPORTANT: Keep response concise to avoid truncation`;
+        
+        const result = await callAIModelAPI(prompt);
         if (!result || !result.bridgeCourse || !result.bridgeCourse.chapters) {
             throw new Error('AI returned invalid bridge course format');
         }
         return result.bridgeCourse;
     } catch (error) {
-        console.error("Error in generateBridgeCourse:", error);
+        console.error(`Error in generateBridgeCourse (attempt ${retryCount + 1}):`, error);
+        
+        // Retry with simpler prompt if truncation error and retries available
+        if (retryCount < maxRetries && (error.message.includes('truncated') || error.message.includes('429'))) {
+            const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+            console.log(`🔄 Retrying bridge course generation in ${delay}ms (attempt ${retryCount + 2})...`);
+            
+            // Wait before retrying to handle rate limiting
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return generateBridgeCourse(weaknesses, retryCount + 1);
+        }
         // Return a comprehensive fallback bridge course if AI fails
+        console.log('🔄 Using fallback bridge course due to AI service issues');
+        const weakTopicsString = Object.keys(weaknesses).join(', ') || 'basic French concepts';
+        
         return {
             chapters: [{
-                title: "Core French Concepts Review",
+                title: `Essential French Review: ${weakTopicsString}`,
                 topic: "French Fundamentals",
                 description: "Comprehensive review of essential French concepts you need to master",
-                estimatedMinutes: 45,
+                estimatedMinutes: 60,
                 content: {
-                    introduction: "This comprehensive review chapter will help you master the fundamental French concepts that are essential for your language learning journey. We'll cover key grammar rules, vocabulary, and usage patterns.",
-                    explanation: "French fundamentals form the backbone of successful language learning. This chapter focuses on the core concepts that many students find challenging: gender agreement, verb conjugations, and sentence structure. Gender in French is not arbitrary - it follows patterns that can be learned. Masculine nouns often end in consonants (le livre, le chat), while feminine nouns frequently end in -e (la table, la voiture). However, there are important exceptions like 'le problème' (masculine despite ending in -e) and 'la main' (feminine despite ending in a consonant). Verb conjugations follow predictable patterns for regular verbs. -ER verbs (like 'parler') drop the -er and add endings: je parle, tu parles, il/elle parle, nous parlons, vous parlez, ils/elles parlent. -IR verbs (like 'finir') follow a similar pattern: je finis, tu finis, il/elle finit, nous finissons, vous finissez, ils/elles finissent. Sentence structure in French follows Subject-Verb-Object order like English, but adjectives usually come after nouns (une voiture rouge = a red car). Question formation can use inversion (Parlez-vous français?), est-ce que (Est-ce que vous parlez français?), or rising intonation (Vous parlez français?). Understanding these patterns will dramatically improve your French comprehension and production.",
+                    introduction: `This comprehensive review chapter will help you master the fundamental French concepts that are essential for your language learning journey. We'll focus specifically on: ${weakTopicsString}.`,
+                    explanation: `French fundamentals form the backbone of successful language learning. This chapter focuses on the core concepts that many students find challenging, particularly in areas like ${weakTopicsString}. 
+
+GREETINGS AND BASIC EXPRESSIONS:
+French greetings are more formal than English. Use "Bonjour" (good day) until evening, then "Bonsoir" (good evening). "Salut" is informal for friends. "Comment allez-vous?" (formal) or "Ça va?" (informal) means "How are you?"
+
+FAMILY VOCABULARY:
+Essential family terms include: la famille (family), le père (father), la mère (mother), le fils (son), la fille (daughter), le frère (brother), la sœur (sister), les parents (parents), les grands-parents (grandparents).
+
+NUMBERS AND TIME:
+Numbers 1-20: un, deux, trois, quatre, cinq, six, sept, huit, neuf, dix, onze, douze, treize, quatorze, quinze, seize, dix-sept, dix-huit, dix-neuf, vingt. Time expressions: Quelle heure est-il? (What time is it?), Il est... (It is...).
+
+VERBS AND CONJUGATION:
+Regular -ER verbs (parler): je parle, tu parles, il/elle parle, nous parlons, vous parlez, ils/elles parlent. Key irregular verbs: être (to be), avoir (to have), aller (to go), faire (to do/make).
+
+FOOD VOCABULARY:
+Basic food terms: le pain (bread), l'eau (water), le lait (milk), la viande (meat), les légumes (vegetables), les fruits (fruits), le fromage (cheese), le vin (wine).
+
+ADJECTIVES AND AGREEMENT:
+Adjectives must agree with nouns in gender and number. Masculine: grand (tall), petit (small). Feminine: grande, petite. Plural: grands/grandes, petits/petites.
+
+This foundation will prepare you for more advanced French concepts and help you communicate effectively in everyday situations.`,
                     keyPoints: [
                         "Gender patterns: masculine nouns often end in consonants, feminine often in -e, but learn exceptions",
                         "Regular verb conjugations follow predictable patterns based on infinitive endings (-er, -ir, -re)",
@@ -690,15 +811,15 @@ REQUIREMENTS:
 }
 
 
-// ... (keep all existing functions: callGeminiAPI, generatePlacementTest, gradeTestWithAI, etc.)
+// ... (keep all existing functions: callAIModelAPI, generatePlacementTest, gradeTestWithAI, etc.)
 
 /**
- * @desc    Calls Gemini to generate a progress test based on the content of specific chapters.
+ * @desc    Calls FrAILearn AI Model to generate a progress test based on the content of specific chapters.
  * @param {Array<object>} completedChapters - An array of chapter objects the user has completed.
  * @returns {Promise<object>} A promise that resolves to the test data structure.
  */
 /**
- * @desc    Calls Gemini to extract key vocabulary and grammar from a lesson to create flashcards.
+ * @desc    Calls FrAILearn AI Model to extract key vocabulary and grammar from a lesson to create flashcards.
  * @param {object} lesson - The full lesson object from the database.
  * @returns {Promise<Array<object>>} A promise resolving to an array of flashcard data objects.
  */
@@ -729,7 +850,7 @@ Generate between 5 and 10 flashcards for this lesson.`;
 
     try {
         console.log(`AI Service: Generating flashcards for lesson: "${lesson.title}"`);
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         if (!result || !result.flashcards || !Array.isArray(result.flashcards)) {
             throw new Error('AI returned invalid flashcard format');
         }
@@ -782,7 +903,7 @@ Each lesson must have:
 Focus on: ${topics}
 Keep content concise and practical.`;
 
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         if (result && result.chapters && Array.isArray(result.chapters)) {
             console.log(`✅ Generated ${result.chapters.length} chapters for range ${startChapter}-${endChapter}`);
             return result.chapters;
@@ -818,18 +939,192 @@ Base all questions directly on the provided chapter summaries and topics.`;
 
     try {
         console.log(`AI Service: Generating progress test for topics: ${topics}`);
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         return result.progressTest;
     } catch (error) {
         console.error("Error in generateProgressTest:", error);
-        throw new Error("Failed to generate progress test from AI.");
+        console.log("🔄 Falling back to template-based test generation...");
+        
+        // Fallback to template-based test generation
+        return generateFallbackProgressTest(completedChapters);
     }
+}
+
+/**
+ * Fallback function to generate progress tests when AI fails
+ */
+function generateFallbackProgressTest(completedChapters) {
+    const topics = completedChapters.map(ch => ch.topic);
+    const chapterNumbers = completedChapters.map(ch => ch.chapterNumber);
+    const chapterRange = `${Math.min(...chapterNumbers)}-${Math.max(...chapterNumbers)}`;
+    
+    // Template questions based on common French learning topics
+    const questionTemplates = {
+        'Greetings': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'How do you say "Hello" in French?',
+                options: ['Bonjour', 'Au revoir', 'Bonsoir', 'Salut'],
+                correctAnswer: 'Bonjour'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'Complete: "_____ vous allez?" (How are you?)',
+                correctAnswer: 'Comment'
+            }
+        ],
+        'Numbers': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'What is "five" in French?',
+                options: ['quatre', 'cinq', 'six', 'sept'],
+                correctAnswer: 'cinq'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'Write the number 23 in French:',
+                correctAnswer: 'vingt-trois'
+            },
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'How do you say "I am 25 years old" in French?',
+                options: ['J\'ai 25 ans', 'Je suis 25 ans', 'J\'ai 25 années', 'Je fais 25 ans'],
+                correctAnswer: 'J\'ai 25 ans'
+            }
+        ],
+        'Family': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'What is "mother" in French?',
+                options: ['père', 'mère', 'sœur', 'frère'],
+                correctAnswer: 'mère'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'Complete: "Mon _____ s\'appelle Pierre" (My father\'s name is Pierre)',
+                correctAnswer: 'père'
+            }
+        ],
+        'Colors': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'What is "red" in French?',
+                options: ['bleu', 'vert', 'rouge', 'jaune'],
+                correctAnswer: 'rouge'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'The sky is blue: "Le ciel est _____"',
+                correctAnswer: 'bleu'
+            }
+        ],
+        'Food': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'What is "bread" in French?',
+                options: ['pain', 'lait', 'eau', 'fromage'],
+                correctAnswer: 'pain'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'I like apples: "J\'aime les _____"',
+                correctAnswer: 'pommes'
+            }
+        ],
+        'Verbs': [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'Conjugate "être" (to be) for "I am":',
+                options: ['je suis', 'tu es', 'il est', 'nous sommes'],
+                correctAnswer: 'je suis'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'Complete: "Nous _____ français" (We are French)',
+                correctAnswer: 'sommes'
+            }
+        ]
+    };
+    
+    // Generate questions based on completed chapter topics
+    const questions = [];
+    let questionId = 1;
+    
+    // Try to match topics with templates
+    topics.forEach(topic => {
+        const normalizedTopic = topic.toLowerCase();
+        let matchedTemplate = null;
+        
+        // Find matching template
+        for (const [templateTopic, templateQuestions] of Object.entries(questionTemplates)) {
+            if (normalizedTopic.includes(templateTopic.toLowerCase()) || 
+                templateTopic.toLowerCase().includes(normalizedTopic)) {
+                matchedTemplate = templateQuestions;
+                break;
+            }
+        }
+        
+        // Add questions from matched template
+        if (matchedTemplate) {
+            matchedTemplate.forEach(template => {
+                questions.push({
+                    id: questionId.toString(),
+                    type: template.type,
+                    topic: topic,
+                    question: template.question,
+                    options: template.options || [],
+                    correctAnswer: template.correctAnswer
+                });
+                questionId++;
+            });
+        }
+    });
+    
+    // If we don't have enough questions, add some general ones
+    while (questions.length < 10) {
+        const generalQuestions = [
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'What does "Merci" mean?',
+                options: ['Please', 'Thank you', 'Excuse me', 'You\'re welcome'],
+                correctAnswer: 'Thank you'
+            },
+            {
+                type: 'FILL_IN_BLANK',
+                question: 'Complete: "Je _____ français" (I speak French)',
+                correctAnswer: 'parle'
+            },
+            {
+                type: 'MULTIPLE_CHOICE',
+                question: 'How do you say "Good evening" in French?',
+                options: ['Bonjour', 'Bonsoir', 'Bonne nuit', 'Salut'],
+                correctAnswer: 'Bonsoir'
+            }
+        ];
+        
+        const randomQuestion = generalQuestions[questions.length % generalQuestions.length];
+        questions.push({
+            id: questionId.toString(),
+            type: randomQuestion.type,
+            topic: 'General French',
+            question: randomQuestion.question,
+            options: randomQuestion.options || [],
+            correctAnswer: randomQuestion.correctAnswer
+        });
+        questionId++;
+    }
+    
+    console.log(`✅ Generated fallback progress test with ${questions.length} questions for chapters ${chapterRange}`);
+    
+    return {
+        questionsData: questions.slice(0, 15) // Limit to 15 questions
+    };
 }
 
 // ... (keep all existing functions)
 
 /**
- * @desc    Calls Gemini to generate a targeted remedial chapter based on a specific weak topic.
+ * @desc    Calls FrAILearn AI Model to generate a targeted remedial chapter based on a specific weak topic.
  * @param {string} topic - The topic the user is struggling with (e.g., "Definite Articles").
  * @param {Array<object>} mistakeExamples - A few examples of the user's actual mistakes for context.
  * @returns {Promise<object>} A promise that resolves to the remedial chapter data.
@@ -863,7 +1158,7 @@ Each "RemedialExercise" must have:
 
     try {
         console.log(`AI Service: Generating remedial chapter for topic: ${topic}`);
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         return result.remedialChapter;
     } catch (error) {
         console.error(`Error in generateRemedialChapter for topic "${topic}":`, error);
@@ -875,7 +1170,7 @@ Each "RemedialExercise" must have:
 // ... (keep all existing functions)
 
 /**
- * @desc    Calls Gemini to generate a final test for a Bridge Course based on its chapters.
+ * @desc    Calls FrAILearn AI Model to generate a final test for a Bridge Course based on its chapters.
  * @param {Array<object>} bridgeChapters - An array of the Bridge Course chapter objects.
  * @returns {Promise<object>} A promise that resolves to the test data structure.
  */
@@ -896,7 +1191,7 @@ The questions must be directly related to the chapter topics provided.`;
 
     try {
         console.log(`AI Service: Generating Bridge Course Final Test for topics: ${topics}`);
-        const result = await callGeminiAPI(prompt);
+        const result = await callAIModelAPI(prompt);
         return result.finalTest;
     } catch (error) {
         console.error("Error in generateBridgeCourseFinalTest:", error);

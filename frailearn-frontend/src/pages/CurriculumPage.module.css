@@ -78,6 +78,9 @@
   padding: 1.5rem;
   border: 2px solid var(--border-color);
   transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
 }
 
 .chapterCard.unlocked {
@@ -143,6 +146,11 @@
   font-size: 0.9rem;
   line-height: 1.4;
   margin-bottom: 1rem;
+  flex-grow: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .unlockCondition {
@@ -157,6 +165,9 @@
 
 .chapterFooter {
   margin-top: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .chapterButton {
@@ -170,6 +181,7 @@
   transition: background-color 0.3s ease;
   text-align: center;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .chapterButton:hover {
@@ -185,6 +197,8 @@
   font-weight: 600;
   width: 100%;
   cursor: not-allowed;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .progressTestPrompt {
@@ -251,5 +265,14 @@
   
   .chaptersGrid {
     grid-template-columns: 1fr;
+  }
+  
+  .chapterCard {
+    min-height: auto;
+  }
+  
+  .chapterButton, .lockedButton {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
   }
 }

@@ -143,7 +143,7 @@ export const submitRemedialExercise = async (req, res) => {
                 .toLowerCase()
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
-                .replace(/[^a-z\s\-']/g, '') // Keep only letters, spaces, hyphens, and apostrophes
+                .replace(/[^a-z0-9\s\-']/g, '') // Keep only letters, numbers, spaces, hyphens, and apostrophes
                 .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         };
 

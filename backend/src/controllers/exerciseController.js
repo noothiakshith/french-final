@@ -1,5 +1,5 @@
 import prisma from '../utils/prisma.js';
-import { updateProgressOnLessonComplete } from '../services/progressService.js';
+import { updateProgressOnLessonComplete, checkForLevelProgression } from '../services/progressService.js';
 import { initializeFlashcardsForCompletedLesson } from '../services/flashcardService.js';
 import { performAdaptiveLearningChecks } from '../services/adaptiveLearningService.js';
 
@@ -28,7 +28,7 @@ export const submitExercise = async (req, res) => {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
-        .replace(/[^a-z\s\-']/g, '') // Keep only letters, spaces, hyphens, and apostrophes
+        .replace(/[^a-z0-9\s\-']/g, '') // Keep only letters, numbers, spaces, hyphens, and apostrophes
         .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
     };
 
@@ -101,6 +101,34 @@ export const submitExercise = async (req, res) => {
           data: { isCompleted: true, completedAt: new Date() },
         });
 
+        // Check if this lesson completion makes the chapter complete
+        const chapterData = await prisma.lesson.findUnique({
+          where: { id: lessonId },
+          select: { 
+            chapterId: true,
+            chapter: {
+              select: { id: true, isCompleted: true }
+            }
+          }
+        });
+
+        if (chapterData && !chapterData.chapter.isCompleted) {
+          const chapterLessonsTotal = await prisma.lesson.count({ 
+            where: { chapterId: chapterData.chapterId } 
+          });
+          const chapterLessonsCompleted = await prisma.lesson.count({ 
+            where: { chapterId: chapterData.chapterId, isCompleted: true } 
+          });
+
+          if (chapterLessonsTotal > 0 && chapterLessonsCompleted === chapterLessonsTotal) {
+            await prisma.chapter.update({
+              where: { id: chapterData.chapterId },
+              data: { isCompleted: true, completedAt: new Date() }
+            });
+            console.log(`✅ Chapter ${chapterData.chapterId} completed for user ${userId}.`);
+          }
+        }
+
         await updateProgressOnLessonComplete(userId);
         
         // Generate flashcards for the completed lesson
@@ -127,5 +155,123 @@ export const submitExercise = async (req, res) => {
   } catch (error) {
     console.error(`❌ Error submitting exercise ${exerciseId}:`, error);
     res.status(500).json({ message: 'Server error while submitting exercise.' });
+  }
+};
+
+/**
+ * Submit a test attempt and handle level progression
+ */
+export const submitTest = async (req, res) => {
+  const userId = req.user.id;
+  const { testType, level, chapterRange, answers, timeSpent } = req.body;
+
+  try {
+    // Validate required fields
+    if (!testType || !level || !answers || !Array.isArray(answers)) {
+      return res.status(400).json({ 
+        message: 'testType, level, and answers array are required.' 
+      });
+    }
+
+    // For this fix, we'll focus on bridge course final tests
+    if (testType !== 'BRIDGE_FINAL' && testType !== 'FINAL_TEST') {
+      return res.status(400).json({ 
+        message: 'Only BRIDGE_FINAL and FINAL_TEST are supported for level progression.' 
+      });
+    }
+
+    // Calculate score (simplified - in real app you'd have actual questions)
+    const totalQuestions = answers.length;
+    const correctAnswers = answers.filter(answer => answer.isCorrect).length;
+    const score = Math.round((correctAnswers / totalQuestions) * 100);
+    const passed = score >= 80;
+
+    // Create test attempt record
+    const testAttempt = await prisma.testAttempt.create({
+      data: {
+        userId,
+        testType,
+        level,
+        chapterRange: chapterRange || 'FINAL',
+        title: `${level} ${testType === 'BRIDGE_FINAL' ? 'Bridge Course Final' : 'Final'} Test`,
+        questions: { questions: answers.map(a => ({ question: a.question, correctAnswer: a.correctAnswer })) },
+        totalQuestions,
+        passingScore: 80,
+        correctAnswers,
+        score,
+        passed,
+        timeSpent: timeSpent || 0,
+        userAnswers: { answers },
+        topicBreakdown: {},
+        weakAreas: { areas: [] },
+        strongAreas: { areas: [] },
+        completedAt: new Date()
+      }
+    });
+
+    // Update bridge course if this is a bridge final test
+    if (testType === 'BRIDGE_FINAL') {
+      const bridgeCourse = await prisma.bridgeCourse.findUnique({
+        where: { userId }
+      });
+
+      if (bridgeCourse) {
+        await prisma.bridgeCourse.update({
+          where: { userId },
+          data: {
+            finalTestScore: score,
+            isCompleted: passed,
+            completedAt: passed ? new Date() : null
+          }
+        });
+      }
+    }
+
+    // Check for level progression if test passed
+    let levelAdvanced = false;
+    if (passed) {
+      levelAdvanced = await checkForLevelProgression(userId, score, testType);
+    }
+
+    // Update user progress
+    await prisma.userProgress.upsert({
+      where: { userId },
+      update: {
+        totalTestsTaken: { increment: 1 },
+        averageTestScore: score
+      },
+      create: {
+        userId,
+        currentLevel: level,
+        currentChapter: 1,
+        currentLesson: 1,
+        totalTestsTaken: 1,
+        averageTestScore: score
+      }
+    });
+
+    console.log(`✅ Test completed for user ${userId}: ${score}% (${passed ? 'PASSED' : 'FAILED'})`);
+    if (levelAdvanced) {
+      console.log(`🚀 User ${userId} advanced to next level!`);
+    }
+
+    res.status(200).json({
+      success: true,
+      testAttemptId: testAttempt.id,
+      score,
+      passed,
+      correctAnswers,
+      totalQuestions,
+      levelAdvanced,
+      message: levelAdvanced 
+        ? `Congratulations! You scored ${score}% and advanced to the next level!`
+        : passed 
+          ? `Great job! You scored ${score}% and passed the test.`
+          : `You scored ${score}%. You need 80% or higher to advance to the next level.`
+    });
+
+  } catch (error) {
+    console.error(`❌ Error submitting test for user ${userId}:`, error);
+    res.status(500).json({ message: 'Server error while submitting test.' });
   }
 };

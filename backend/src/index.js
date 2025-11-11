@@ -1,11 +1,9 @@
-// @ts-nocheck
+
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import compression from 'compression';
 import { startScheduledTasks } from './services/schedulerService.js';
-
-// --- Route Imports ---
 import bridgeCourseRoutes from './routes/bridgeCourseRoutes.js';
 import remedialRoutes from './routes/remedialRoutes.js';
 import authRoutes from './routes/authRoutes.js';

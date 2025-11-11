@@ -126,6 +126,10 @@ export const getChapterProgress = async (req, res) => {
                     where: { id: chapterId },
                     data: { isCompleted: true, completedAt: new Date() }
                 });
+                
+                // Check if we need to unlock the next section after completing this chapter
+                const { checkAndUnlockNextSection } = await import('../services/progressService.js');
+                await checkAndUnlockNextSection(userId);
             }
             isChapterCompleted = true;
         }

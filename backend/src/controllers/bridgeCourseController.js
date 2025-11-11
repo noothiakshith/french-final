@@ -188,12 +188,49 @@ export const submitFinalTest = async (req, res) => {
                 }
             });
             
-            // 2. Generate the user's target level curriculum
-            await generateAndSaveCurriculum(userId, testAttempt.level); // e.g., 'INTERMEDIATE'
+            // 2. Determine the correct target level
+            // Get user's current level (which should be their selected level)
+            const currentUser = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { currentLevel: true }
+            });
+            
+            // Use the user's current level as the target (this handles cases where bridge course target was set incorrectly)
+            const actualTargetLevel = currentUser?.currentLevel || bridgeCourse.targetLevel;
+            console.log(`🎓 Generating ${actualTargetLevel} curriculum for user after passing bridge course`);
+            
+            // Generate curriculum for the correct level
+            await generateAndSaveCurriculum(userId, actualTargetLevel);
             curriculumGenerated = true;
+            
+            // 3. Ensure user's current level is set correctly
+            await prisma.user.update({
+                where: { id: userId },
+                data: { currentLevel: actualTargetLevel }
+            });
+            
+            // 4. Also update UserProgress table
+            await prisma.userProgress.upsert({
+                where: { userId },
+                update: {
+                    currentLevel: actualTargetLevel,
+                    currentChapter: 1,
+                    currentLesson: 1
+                },
+                create: {
+                    userId,
+                    currentLevel: actualTargetLevel,
+                    currentChapter: 1,
+                    currentLesson: 1,
+                    topicMastery: {},
+                    identifiedWeaknesses: { weaknesses: [] }
+                }
+            });
+            
+            console.log(`✅ User advanced to ${actualTargetLevel} level`);
         }
 
-        // 3. Update the test attempt record
+        // 5. Update the test attempt record
         await prisma.testAttempt.update({
             where: { id: testId },
             data: { score, correctAnswers: correctCount, passed, completedAt: new Date(), userAnswers: answers }
@@ -210,7 +247,6 @@ export const submitFinalTest = async (req, res) => {
         console.error("Error submitting Bridge Course final test:", error);
         console.error("Test ID:", testId);
         console.error("User ID:", userId);
-        console.error("Test attempt chapterRange:", testAttempt?.chapterRange);
         res.status(500).json({ message: "Server error while submitting test." });
     }
 };
@@ -259,7 +295,7 @@ export const submitBridgeExercise = async (req, res) => {
                 .toLowerCase()
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
-                .replace(/[^a-z\s\-']/g, '') // Keep only letters, spaces, hyphens, and apostrophes
+                .replace(/[^a-z0-9\s\-']/g, '') // Keep only letters, numbers, spaces, hyphens, and apostrophes
                 .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         };
 

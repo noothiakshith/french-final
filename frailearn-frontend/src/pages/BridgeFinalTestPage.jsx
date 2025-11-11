@@ -27,16 +27,18 @@ const BridgeFinalTestPage = () => {
     const { score, passed } = result;
     
     if (passed) {
-      // If they passed, redirect to main curriculum dashboard
+      // If they passed, redirect to main curriculum dashboard with refresh flag
       navigate('/dashboard', { 
         state: { 
           testResult: { 
             type: 'bridge-final',
             score, 
             passed,
-            message: 'Congratulations! You have successfully completed the Bridge Course and unlocked your main curriculum.'
+            message: 'Congratulations! You have successfully completed the Bridge Course and unlocked your main curriculum.',
+            shouldRefresh: true // Flag to trigger data refresh
           } 
-        } 
+        },
+        replace: true // Replace history to prevent back button issues
       });
     } else {
       // If they failed, redirect back to bridge course

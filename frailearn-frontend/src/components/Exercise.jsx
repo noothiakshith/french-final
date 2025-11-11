@@ -13,14 +13,14 @@ const Exercise = ({ exercise, onCorrectAnswer }) => {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
-      .replace(/[^a-z\s\-']/g, '') // Keep only letters, spaces, hyphens, and apostrophes
+      .replace(/[^a-z0-9\s\-']/g, '') // Keep only letters, numbers, spaces, hyphens, and apostrophes
       .trim();
   };
 
-  // Function to filter input to allow both French and English characters
+  // Function to filter input to allow both French and English characters, plus numbers
   const filterInput = (text) => {
-    // Allow French letters (including accented), English letters, spaces, hyphens, and apostrophes
-    return text.replace(/[^a-zA-ZàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ\s\-']/g, '');
+    // Allow French letters (including accented), English letters, numbers, spaces, hyphens, and apostrophes
+    return text.replace(/[^a-zA-ZàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ0-9\s\-']/g, '');
   };
 
   const handleInputChange = (e) => {

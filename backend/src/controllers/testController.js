@@ -169,15 +169,36 @@ export const submitPlacementTest = async (req, res) => {
         let curriculumError = null;
 
         try {
+            // Get user's originally selected level
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { currentLevel: true }
+            });
+            
+            const userSelectedLevel = user?.currentLevel || 'BEGINNER';
+            console.log(`📊 User selected level: ${userSelectedLevel}, Test score: ${score}%`);
+            
             if (score < 50) {
+                // User needs to start from beginner regardless of selection
                 pathAssigned = 'BEGINNER';
                 await prisma.user.update({ where: { id: userId }, data: { currentLevel: 'BEGINNER' } });
                 await generateAndSaveCurriculum(userId, 'BEGINNER');
+                console.log(`✅ Assigned BEGINNER curriculum (score < 50%)`);
             } else {
+                // User scored 50%+ so they get a bridge course for their selected level
                 pathAssigned = 'BRIDGE_COURSE';
-                const recommendedLevel = 'INTERMEDIATE';
-                await prisma.user.update({ where: { id: userId }, data: { currentLevel: recommendedLevel } });
-                await generateAndSaveBridgeCourse(userId, recommendedLevel, weaknesses);
+                
+                // Determine target level based on user's selection
+                let targetLevel = 'INTERMEDIATE'; // default
+                if (userSelectedLevel === 'ADVANCED') {
+                    targetLevel = 'ADVANCED';
+                } else if (userSelectedLevel === 'INTERMEDIATE') {
+                    targetLevel = 'INTERMEDIATE';
+                }
+                
+                console.log(`🌉 Creating bridge course for target level: ${targetLevel}`);
+                await prisma.user.update({ where: { id: userId }, data: { currentLevel: targetLevel } });
+                await generateAndSaveBridgeCourse(userId, targetLevel, weaknesses);
             }
         } catch (error) {
             console.error('Curriculum generation error:', error);
@@ -186,6 +207,13 @@ export const submitPlacementTest = async (req, res) => {
         }
 
         // 4. Update the test record in the DB with the AI's results
+        // Get the actual target level that was assigned
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { currentLevel: true }
+        });
+        const finalLevel = user?.currentLevel || 'BEGINNER';
+        
         await prisma.placementTest.update({
             where: { id: testId },
             data: {
@@ -194,7 +222,7 @@ export const submitPlacementTest = async (req, res) => {
                 completedAt: new Date(),
                 weaknesses: weaknesses || {}, // Use the AI's weakness analysis
                 requiresBridge: score >= 50,
-                recommendedLevel: score < 50 ? 'BEGINNER' : 'INTERMEDIATE',
+                recommendedLevel: finalLevel,
             },
         });
 
@@ -453,8 +481,9 @@ export const submitProgressTest = async (req, res) => {
             },
         });
 
-        // 4. If the test is passed and it's a progress test, unlock the next chapters
-        if (passed && testAttempt.testType === 'PROGRESS_TEST') {
+        // 4. Progress tests are now informational only - chapters are unlocked by lesson completion
+        // Keep the old logic commented for reference but don't block progression
+        if (false && passed && testAttempt.testType === 'PROGRESS_TEST') {
             console.log('🔓 Progress test passed - generating next chapters...');
             
             try {

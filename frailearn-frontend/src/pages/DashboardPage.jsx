@@ -26,6 +26,7 @@ const DashboardPage = () => {
 
     const fetchData = async () => {
       try {
+        // Force fresh data fetch, especially after bridge course completion
         const [chaptersResponse, dashboardResponse, progressTestResponse] = await Promise.all([
           getMyChapters().catch(() => ({ data: [] })),
           getDashboard().catch(() => ({ data: null })),
@@ -35,6 +36,11 @@ const DashboardPage = () => {
         setChapters(chaptersResponse.data);
         setDashboard(dashboardResponse.data);
         setProgressTestRec(progressTestResponse.data);
+        
+        // Log the current level for debugging
+        if (dashboardResponse.data?.progress?.level) {
+          console.log('📊 Current Level from Dashboard:', dashboardResponse.data.progress.level);
+        }
       } catch (err) {
         setError('Failed to load your dashboard. Please try again later.');
         console.error(err);
@@ -44,6 +50,14 @@ const DashboardPage = () => {
     };
 
     fetchData();
+    
+    // If bridge course was just completed, fetch again after a short delay to ensure DB is updated
+    if (location.state?.testResult?.shouldRefresh) {
+      console.log('🔄 Bridge course completed - fetching updated data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    }
   }, [location.state]);
 
 

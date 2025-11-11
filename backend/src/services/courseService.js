@@ -87,7 +87,7 @@ export const generateAndSaveCurriculum = async (userId, level) => {
                     chapterNumber: index + 1,
                     sectionNumber: section,
                     isUnlocked,
-                    unlockCondition: isUnlocked ? null : `Pass Progress Test for chapters ${section * 5 - 4}-${section * 5}.`,
+                    unlockCondition: isUnlocked ? null : `Complete all lessons in the previous section to unlock.`,
                     lessons: {
                         create: (lessons || []).map((lesson, lessonIndex) => {
                             const lessonExercises = (lesson.exercises && lesson.exercises.length) ? lesson.exercises : generateDefaultExercises(lesson || {});
