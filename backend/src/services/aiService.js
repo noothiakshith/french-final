@@ -1,5 +1,6 @@
 // --- CONFIGURATION ---
-const AI_MODEL_NAME = "frailearn-ai-v2.0"; // Custom FrAILearn AI Model
+const AI_MODEL_NAME = "frailearn-ai-v2.0"; // Custom FrAILearn AI Model (Display name)
+const ACTUAL_MODEL_NAME = "gemini-2.0-flash"; // Actual API model name
 
 /**
  * A utility to parse a JSON response from our custom AI model.
@@ -96,7 +97,7 @@ function parseAIResponse(rawText, maxLength = 50000) {
 
 async function callAIModelAPI(prompt) {
     const API_KEY = process.env.AI_MODEL_API_KEY;
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL_NAME.replace('frailearn-ai-v2.0', 'FrAILearn AI Model-2.0-flash')}:generateContent`;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${ACTUAL_MODEL_NAME}:generateContent`;
     
     const requestBody = { 
         contents: [{ parts: [{ text: prompt }] }], 
